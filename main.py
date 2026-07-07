@@ -47,6 +47,14 @@ def main():
 
     config = {"configurable": {"thread_id": args.thread_id}}
 
+    # Check if there is an existing checkpoint for this thread to support resumability
+    existing_state = app.get_state(config)
+    if existing_state and existing_state.values:
+        print(f"Found existing checkpoint for thread '{args.thread_id}'. Resuming execution from the last saved state...")
+        state_input = None
+    else:
+        state_input = initial_state
+
     # Execute the LangGraph workflow and print events
     print("--------------------------------------------------------------------------------")
     print("Agent Logs:")
@@ -54,7 +62,7 @@ def main():
     
     current_status = None
     
-    for event in app.stream(initial_state, config, stream_mode="values"):
+    for event in app.stream(state_input, config, stream_mode="values"):
         # Access the latest state values from the event
         status = event.get("status")
         if status != current_status:
