@@ -1,0 +1,41 @@
+# Environments & Secrets
+.env
+.env.*
+!.env.example
+
+# Byte-compiled / cache directories
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# Databases & local state
+*.db
+*.db-journal
+checkpoints.db
+checkpoints.db-journal
+
+# Manual testing outputs & artifacts
+mock_output*/
+real_output*/
+temp_output/
+run_trace.json
+
+# IDEs
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# OS-specific
+.DS_Store
+Thumbs.db
+Desktop.ini
