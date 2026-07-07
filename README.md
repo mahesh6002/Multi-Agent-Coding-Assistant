@@ -74,27 +74,23 @@ To stay within the free-tier Gemini API rate limits (20 Requests Per Minute), th
 
 ---
 
-## 4. Evaluation Benchmark Results
+## 4. Evaluation & Benchmarks (Pending Quota Reset)
 
-The system includes a sequential evaluation harness in `benchmark.py` running against the real Gemini API (`MOCK_LLM=false`).
+The evaluation harness is fully implemented in `benchmark.py` and configured to run against the real Gemini API (`MOCK_LLM=false`).
 
-### Task 3 Multi-File Specification
-Unlike simple coding pipelines, **Task 3** exercises multi-file generation:
-*   `schema.py`: Schema format classes.
-*   `validator.py`: Logic validating column types, column counts, and headers.
-*   `exceptions.py`: Shared validation exception classes.
-*   Unit tests checking column mismatches, valid rows, and invalid types.
-
-### Benchmark Run Metrics
-Below is the honest execution report generated when the benchmark run hit the daily API quota:
+> [!WARNING]
+> **Evaluation Status**: Fully built and instrumented, pending a completed evaluation run.
+> Because the free-tier daily API request quota (`GenerateRequestsPerDayPerProjectPerModel-FreeTier`) was exhausted during development, a successful end-to-end benchmark run has not yet been executed. Consequently, the real-world task success rate and convergence speeds are currently unknown.
+>
+> Below are the diagnostics from the baseline run when the daily quota limit was encountered, illustrating the error-capture functionality of the harness:
 
 | Task ID | Task Name | Status | Iterations | Time (s) | File Count | Primary Failure Reason |
 |---|---|---|---|---|---|---|
-| `task_1_lru_cache` | LRU Cache | ❌ FAILED | 4 | 40.31 | 0 | `RESOURCE_EXHAUSTED (429)` quota limit in Supervisor |
-| `task_2_rate_limiter` | Token Bucket Rate Limiter | ❌ FAILED | 2 | 40.02 | 0 | `RESOURCE_EXHAUSTED (429)` quota limit in Supervisor |
-| `task_3_csv_validator` | Multi-File CSV Validator | ❌ FAILED | 2 | 41.31 | 0 | `RESOURCE_EXHAUSTED (429)` quota limit in Supervisor |
-| `task_4_run_length_encoder` | Run-Length Encoder | ❌ FAILED | 2 | 40.50 | 0 | `RESOURCE_EXHAUSTED (429)` quota limit in Supervisor |
-| `task_5_markdown_to_html` | Markdown to HTML Converter | ❌ FAILED | 2 | 40.91 | 0 | `RESOURCE_EXHAUSTED (429)` quota limit in Supervisor |
+| `task_1_lru_cache` | LRU Cache | ❌ FAILED | 4 | 40.31 | 0 | `RESOURCE_EXHAUSTED (429)` daily quota limit in Supervisor |
+| `task_2_rate_limiter` | Token Bucket Rate Limiter | ❌ FAILED | 2 | 40.02 | 0 | `RESOURCE_EXHAUSTED (429)` daily quota limit in Supervisor |
+| `task_3_csv_validator` | Multi-File CSV Validator | ❌ FAILED | 2 | 41.31 | 0 | `RESOURCE_EXHAUSTED (429)` daily quota limit in Supervisor |
+| `task_4_run_length_encoder` | Run-Length Encoder | ❌ FAILED | 2 | 40.50 | 0 | `RESOURCE_EXHAUSTED (429)` daily quota limit in Supervisor |
+| `task_5_markdown_to_html` | Markdown to HTML Converter | ❌ FAILED | 2 | 40.91 | 0 | `RESOURCE_EXHAUSTED (429)` daily quota limit in Supervisor |
 
 ---
 
