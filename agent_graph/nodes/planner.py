@@ -74,7 +74,8 @@ def planner_node(state: ProjectState) -> dict:
         ]
         
         try:
-            plan = structured_llm.invoke(messages)
+            from agent_graph.llm_helper import safe_llm_invoke
+            plan = safe_llm_invoke(structured_llm, messages)
             architecture = plan.model_dump()
             action_summary = f"Generated architecture plan with {len(plan.files)} files."
             details = architecture.get("explanation", "")

@@ -88,7 +88,8 @@ def supervisor_node(state: ProjectState) -> dict:
         ]
         
         try:
-            decision = structured_llm.invoke(messages)
+            from agent_graph.llm_helper import safe_llm_invoke
+            decision = safe_llm_invoke(structured_llm, messages)
             next_agent = decision.next_agent
             reasoning = decision.reasoning
         except Exception as e:

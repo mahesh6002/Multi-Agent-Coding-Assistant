@@ -80,7 +80,8 @@ def subtract(a, b):
         )
         
         try:
-            response = structured_llm.invoke([
+            from agent_graph.llm_helper import safe_llm_invoke
+            response = safe_llm_invoke(structured_llm, [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ])

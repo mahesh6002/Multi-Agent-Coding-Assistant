@@ -27,6 +27,8 @@ temp_output/
 temp_*_output/
 temp_api_test_output/
 run_trace.json
+benchmark_output/
+benchmark_results.json
 
 # IDEs
 .vscode/
