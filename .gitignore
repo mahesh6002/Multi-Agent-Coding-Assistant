@@ -24,6 +24,8 @@ checkpoints.db-journal
 mock_output*/
 real_output*/
 temp_output/
+temp_*_output/
+temp_api_test_output/
 run_trace.json
 
 # IDEs
