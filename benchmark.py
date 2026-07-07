@@ -4,6 +4,7 @@ import time
 import datetime
 import traceback
 import sqlite3
+import argparse
 
 # Enforce real Gemini API calls
 os.environ["MOCK_LLM"] = "False"
@@ -13,7 +14,6 @@ from agent_graph.config import settings
 
 # Verify settings mock mode is indeed disabled
 settings.MOCK_LLM = False
-print(f"Mock Mode: {settings.MOCK_LLM} | Model Supervisor: {settings.MODEL_SUPERVISOR}")
 
 # Define the 5 benchmark tasks
 BENCHMARK_TASKS = [
@@ -50,14 +50,23 @@ BENCHMARK_TASKS = [
     }
 ]
 
-def run_benchmark():
+def run_benchmark(target_task_id=None):
     results = []
     start_time_all = time.perf_counter()
     
+    # Filter tasks if a single target task is specified
+    tasks_to_run = BENCHMARK_TASKS
+    if target_task_id:
+        tasks_to_run = [t for t in BENCHMARK_TASKS if t["id"] == target_task_id]
+        if not tasks_to_run:
+            print(f"Error: Task ID '{target_task_id}' not found in benchmark tasks.")
+            return
+            
     print(f"Starting Multi-Agent Assistant Benchmark at {datetime.datetime.now().isoformat()}")
+    print(f"Mock Mode: {settings.MOCK_LLM} | Target Tasks: {[t['name'] for t in tasks_to_run]}")
     print("--------------------------------------------------------------------------------")
     
-    for task in BENCHMARK_TASKS:
+    for task in tasks_to_run:
         task_id = task["id"]
         task_name = task["name"]
         task_spec = task["spec"]
@@ -90,7 +99,6 @@ def run_benchmark():
         try:
             # Execute the graph run synchronously
             final_state = graph_app.invoke(initial_state, config)
-            
             status = final_state.get("status", "failed")
             
             # Count supervisor routing iterations
@@ -102,34 +110,63 @@ def run_benchmark():
             tst_files = list(final_state.get("test_files", {}).keys())
             generated_files = src_files + tst_files
             
-            # Output results to disk
-            output_dir = f"benchmark_output/{task_id}"
-            os.makedirs(output_dir, exist_ok=True)
-            for filepath, content in final_state.get("files", {}).items():
-                out_path = os.path.join(output_dir, filepath)
-                os.makedirs(os.path.dirname(out_path), exist_ok=True)
-                with open(out_path, "w", encoding="utf-8") as f:
-                    f.write(content)
-            for filepath, content in final_state.get("test_files", {}).items():
-                out_path = os.path.join(output_dir, filepath)
-                os.makedirs(os.path.dirname(out_path), exist_ok=True)
-                with open(out_path, "w", encoding="utf-8") as f:
-                    f.write(content)
+            # If the graph reported failure, extract the actual reason from final state logs
+            if status != "done":
+                if run_log:
+                    # Look backward for the first failing step description
+                    for log in reversed(run_log):
+                        action = log.get("action", "")
+                        reasoning = log.get("reasoning", "")
+                        details = log.get("details", "")
+                        if "failed" in action.lower() or "error" in reasoning.lower() or "failed" in reasoning.lower():
+                            error_info = f"[{log.get('agent').upper()} NODE FAILURE] Action: {action} | Reasoning: {reasoning}"
+                            if details:
+                                error_info += f" | Details: {details}"
+                            break
+                    if not error_info:
+                        last = run_log[-1]
+                        error_info = f"[{last.get('agent').upper()} NODE FAILURE] Action: {last.get('action')} | Reasoning: {last.get('reasoning')}"
+                else:
+                    arch_expl = final_state.get("architecture", {}).get("explanation", "")
+                    if "failed" in arch_expl.lower() or "error" in arch_expl.lower():
+                        error_info = f"[PLANNER NODE FAILURE] Explanation: {arch_expl}"
+                    else:
+                        error_info = "Unknown failure occurred before run logs could be recorded."
+            
+            # Output results to disk if successful or partially coded
+            if generated_files:
+                output_dir = f"benchmark_output/{task_id}"
+                os.makedirs(output_dir, exist_ok=True)
+                for filepath, content in final_state.get("files", {}).items():
+                    out_path = os.path.join(output_dir, filepath)
+                    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+                    with open(out_path, "w", encoding="utf-8") as f:
+                        f.write(content)
+                for filepath, content in final_state.get("test_files", {}).items():
+                    out_path = os.path.join(output_dir, filepath)
+                    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+                    with open(out_path, "w", encoding="utf-8") as f:
+                        f.write(content)
             
             # Save run trace
-            with open(os.path.join(output_dir, "run_trace.json"), "w", encoding="utf-8") as f:
-                json.dump(run_log, f, indent=2)
-                
+            if run_log:
+                output_dir = f"benchmark_output/{task_id}"
+                os.makedirs(output_dir, exist_ok=True)
+                with open(os.path.join(output_dir, "run_trace.json"), "w", encoding="utf-8") as f:
+                    json.dump(run_log, f, indent=2)
+                    
         except Exception as e:
             status = "failed_error"
-            error_info = str(e)
-            print(f"[ERROR] Task {task_name} encountered execution exception: {error_info}")
+            error_info = f"[GRAPH PROCESS EXCEPTION] {str(e)}"
+            print(f"[ERROR] Task {task_name} encountered exception: {error_info}")
             traceback.print_exc()
             
         task_end = time.perf_counter()
         elapsed = task_end - task_start
         
         print(f"[COMPLETED] {task_name} | Status: {status} | Iterations: {iterations} | Time: {elapsed:.2f}s")
+        if error_info:
+            print(f"  -> Error: {error_info}")
         
         results.append({
             "task_id": task_id,
@@ -144,19 +181,23 @@ def run_benchmark():
         
     elapsed_all = time.perf_counter() - start_time_all
     
-    # Save structured results to file
-    with open("benchmark_results.json", "w", encoding="utf-8") as f:
-        json.dump({
-            "total_elapsed_seconds": elapsed_all,
-            "timestamp": datetime.datetime.now().isoformat(),
-            "results": results
-        }, f, indent=2)
-        
-    # Generate eval_report.md
-    generate_markdown_report(results, elapsed_all)
-    print("\n================================================================================")
-    print(f"Benchmark finished successfully in {elapsed_all/60:.2f} minutes.")
-    print("Results saved to benchmark_results.json and eval_report.md.")
+    # Save structured results to file (only if running all tasks or appending)
+    if not target_task_id:
+        with open("benchmark_results.json", "w", encoding="utf-8") as f:
+            json.dump({
+                "total_elapsed_seconds": elapsed_all,
+                "timestamp": datetime.datetime.now().isoformat(),
+                "results": results
+            }, f, indent=2)
+            
+        generate_markdown_report(results, elapsed_all)
+        print("\n================================================================================")
+        print(f"Benchmark finished successfully in {elapsed_all/60:.2f} minutes.")
+        print("Results saved to benchmark_results.json and eval_report.md.")
+    else:
+        print("\n================================================================================")
+        print(f"Single task execution completed in {elapsed_all:.2f} seconds.")
+        print(json.dumps(results, indent=2))
 
 def generate_markdown_report(results, total_time):
     passed_tasks = sum(1 for r in results if r["status"] == "done")
@@ -218,7 +259,7 @@ This report summarizes the performance of the **Multi-Agent Coding Assistant** o
             report_content += "    *   No files created.\n"
             
         if r["error"]:
-            report_content += f"\n*   **Error Encountered**:\n    ```\n    {r['error']}\n    ```\n"
+            report_content += f"\n*   **Error Encountered**:\n    > {r['error']}\n"
             
     # Write report locally
     with open("eval_report.md", "w", encoding="utf-8") as f:
@@ -233,4 +274,8 @@ This report summarizes the performance of the **Multi-Agent Coding Assistant** o
         print(f"Warning: Could not write artifact copy: {str(e)}")
 
 if __name__ == "__main__":
-    run_benchmark()
+    parser = argparse.ArgumentParser(description="Multi-Agent Evaluation Benchmark Runner")
+    parser.add_index = parser.add_argument("--task", type=str, help="Run only a single task by ID (e.g. task_1_lru_cache)")
+    args = parser.parse_args()
+    
+    run_benchmark(args.task)
